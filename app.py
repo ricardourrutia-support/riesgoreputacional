@@ -61,11 +61,15 @@ def load_data(file):
         st.error(f"Error al cargar: {e}")
     return None
 
-# 4. FUNCIONES DE EXPORTACIÓN (PDF Y EXCEL)
-def generar_excel(df_export):
+# 4. FUNCIONES DE EXPORTACIÓN (PDF Y EXCEL FILTRADO)
+def generar_excel_negativos(df_completo):
+    # Filtramos para que solo incluya las categorías de riesgo (negativas)
+    categorias_riesgo = ["Cobros y Tarifas", "Calidad de Servicio", "Disponibilidad / App", "Frustración Crítica"]
+    df_negativos = df_completo[df_completo['Categoría'].isin(categorias_riesgo)].copy()
+    
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df_export.to_excel(writer, index=False, sheet_name='Data_Cruda_Riesgo')
+        df_negativos.to_excel(writer, index=False, sheet_name='Casos_Criticos_Support')
     return output.getvalue()
 
 def generar_pdf(df_risk):
@@ -82,7 +86,6 @@ def generar_pdf(df_risk):
     content.append(Paragraph("Reporte Automatizado - Cabify Chile", style_sub))
     content.append(Spacer(1, 10))
 
-    # Generar gráfico estático para el PDF
     if not df_risk.empty and 'Date' in df_risk.columns:
         df_risk['Date'] = pd.to_datetime(df_risk['Date']).dt.date
         evol = df_risk.groupby('Date').size().reset_index(name='Menciones')
@@ -90,7 +93,7 @@ def generar_pdf(df_risk):
         img_buffer = io.BytesIO()
         plt.figure(figsize=(8, 3.5), facecolor='#FDFDFF')
         plt.bar(evol['Date'].astype(str), evol['Menciones'], color='#7350FF', alpha=0.85, width=0.5)
-        plt.title('Evolución de Quejas', fontsize=14, color='#1F1F1F', fontweight='bold')
+        plt.title('Evolución de Quejas Críticas', fontsize=14, color='#1F1F1F', fontweight='bold')
         plt.gca().spines['top'].set_visible(False)
         plt.gca().spines['right'].set_visible(False)
         plt.xticks(rotation=45)
@@ -102,11 +105,10 @@ def generar_pdf(df_risk):
         content.append(Image(img_buffer, width=6*inch, height=2.6*inch))
         content.append(Spacer(1, 20))
 
-    # Tabla de Hallazgos
     conteo = df_risk['Categoría'].value_counts().reset_index()
     conteo.columns = ['Categoría', 'Volumen']
     
-    table_data = [[Paragraph("<b>Categoría</b>", style_body), Paragraph("<b>Volumen de Quejas</b>", style_body)]]
+    table_data = [[Paragraph("<b>Categoría</b>", style_body), Paragraph("<b>Casos para Análisis</b>", style_body)]]
     for _, row in conteo.iterrows():
         table_data.append([row['Categoría'], str(row['Volumen'])])
 
@@ -122,78 +124,32 @@ def generar_pdf(df_risk):
     doc.build(content)
     return pdf_buffer.getvalue()
 
-# 5. INTERFAZ DE USUARIO PRINCIPAL
+# 5. INTERFAZ DE USUARIO
 st.title("🚗 Risk Intelligence Support")
-st.subheader("Análisis Reputacional de Menciones Semanales")
-
-uploaded_file = st.file_uploader("Arrastra aquí el CSV o Excel de Brandwatch", type=["csv", "xlsx", "xls"])
+uploaded_file = st.file_uploader("Sube el archivo de Brandwatch", type=["csv", "xlsx", "xls"])
 
 if uploaded_file:
     df = load_data(uploaded_file)
-    
     if df is not None:
         df.columns = [str(c).replace('"', '').strip() for c in df.columns]
         txt_col = next((c for c in df.columns if c.lower() in ['snippet', 'full text', 'text']), None)
         
         if txt_col:
-            # Procesamiento principal
             df['Categoría'] = df[txt_col].apply(clasificar_mencion)
-            df_risk = df[~df['Categoría'].isin(['Ruido Mediático', 'Otros / Consulta'])].copy()
+            df_risk = df[~df['Categoría'].isin(['Ruido Mediático', 'Otros / Consulta', 'Desconocido'])].copy()
             
-            # --- KPIs SUPERIORES ---
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Total Analizados", len(df))
-            m2.metric("Menciones Riesgo", len(df_risk))
-            risk_pct = (len(df_risk)/len(df)*100) if len(df)>0 else 0
-            m3.metric("% Impacto Negativo", f"{risk_pct:.1f}%")
-            m4.metric("Sentimiento Prom.", "Negativo" if risk_pct > 20 else "Neutral")
             st.divider()
-
-            # --- GRÁFICOS WEB ---
-            col_left, col_right = st.columns([1, 1])
-            with col_left:
-                st.markdown("### 📊 Fricciones")
-                if not df_risk.empty:
-                    conteo = df_risk['Categoría'].value_counts().reset_index()
-                    conteo.columns = ['Categoría', 'Casos']
-                    fig_donut = px.pie(conteo, values='Casos', names='Categoría', hole=0.6, color_discrete_sequence=['#7350FF', '#9E85FF', '#C8BAFF', '#E4DFFF', '#2E1A73'])
-                    fig_donut.update_layout(showlegend=False, margin=dict(t=0, b=0, l=0, r=0), height=300)
-                    fig_donut.update_traces(textposition='inside', textinfo='percent+label')
-                    st.plotly_chart(fig_donut, use_container_width=True)
+            # Botones de exportación
+            st.markdown("### 📥 Descargar Entregables")
+            c1, c2 = st.columns(2)
+            with c1:
+                pdf_data = generar_pdf(df_risk)
+                st.download_button("📄 PDF Resumen Ejecutivo", data=pdf_data, file_name="Resumen_Riesgo_Cabify.pdf")
+            with c2:
+                # AQUÍ ESTÁ EL CAMBIO: El Excel ahora solo lleva los negativos
+                excel_data = generar_excel_negativos(df)
+                st.download_button("📊 Excel Casos Críticos (Solo Negativos)", data=excel_data, file_name="Tickets_Riesgo_Support.xlsx")
             
-            with col_right:
-                st.markdown("### 📅 Evolución")
-                if not df_risk.empty and 'Date' in df_risk.columns:
-                    df_risk['Date'] = pd.to_datetime(df_risk['Date']).dt.date
-                    evol = df_risk.groupby('Date').size().reset_index(name='Quejas')
-                    fig_line = px.line(evol, x='Date', y='Quejas', markers=True)
-                    fig_line.update_traces(line_color='#7350FF', line_width=4, marker=dict(size=10))
-                    fig_line.update_layout(height=300, margin=dict(t=20, b=0, l=0, r=0))
-                    st.plotly_chart(fig_line, use_container_width=True)
-
-            # --- BOTONES DE EXPORTACIÓN ---
             st.divider()
-            st.markdown("### 📥 Exportar Reportes (Formatos Ejecutivos)")
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                if not df_risk.empty:
-                    pdf_data = generar_pdf(df_risk)
-                    st.download_button(
-                        label="📄 Descargar Resumen en PDF",
-                        data=pdf_data,
-                        file_name="Resumen_Riesgo_Cabify.pdf",
-                        mime="application/pdf"
-                    )
-            
-            with col_btn2:
-                excel_data = generar_excel(df)
-                st.download_button(
-                    label="📊 Descargar Datos Crudos (Excel)",
-                    data=excel_data,
-                    file_name="Data_Cruda_Cabify.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-                
-        else:
-            st.error("No se encontró la columna de mensajes (Snippet o Full Text).")
+            st.markdown("### 📝 Vista Previa de Menciones Negativas")
+            st.dataframe(df_risk[[txt_col, 'Categoría']], use_container_width=True)
