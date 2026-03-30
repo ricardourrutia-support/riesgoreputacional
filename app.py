@@ -59,7 +59,7 @@ def cargar_datos_robustos(archivo):
     # Intentar como CSV con distintas codificaciones (UTF-8, Latin-1, etc.)
     codificaciones = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
     
-    for cod en codificaciones:
+    for cod in codificaciones:  # <--- ¡AQUÍ ESTABA EL ERROR! CORREGIDO A 'in'
         try:
             archivo.seek(0)
             contenido = archivo.read().decode(cod)
