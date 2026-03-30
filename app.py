@@ -39,49 +39,62 @@ def clasificar_mencion(texto):
     
     return "Neutral / Positivo"
 
-# 3. Función blindada para leer el archivo sin errores de formato
+# 3. Función detectora de ADN de archivos
 def cargar_datos_robustos(archivo):
-    # Intentar como Excel nativo primero
-    if archivo.name.endswith(('.xls', '.xlsx')):
+    # Leer los primeros 4 bytes para saber el tipo real del archivo
+    cabecera = archivo.read(4)
+    archivo.seek(0)
+    
+    # 'PK\x03\x04' es la firma binaria universal de los archivos .xlsx
+    es_excel_real = (cabecera == b'PK\x03\x04') or archivo.name.endswith(('.xls', '.xlsx'))
+    
+    if es_excel_real:
         try:
+            # Obligar a leerlo como Excel
             df = pd.read_excel(archivo)
+            
             # Buscar dónde empiezan los datos reales si hay metadatos de Brandwatch
-            if not any(col.lower() in ['snippet', 'full text', 'text', 'texto', 'mention'] for col in df.columns):
-                for i in range(1, 15):
+            columnas_minusculas = [str(c).lower() for c in df.columns]
+            if not any(col in columnas_minusculas for col in ['snippet', 'full text', 'text', 'texto', 'mention']):
+                # Buscar en las siguientes 25 filas
+                for i in range(1, 26):
                     archivo.seek(0)
                     temp_df = pd.read_excel(archivo, skiprows=i)
-                    if any(col.lower() in ['snippet', 'full text', 'texto', 'mention', 'text'] for col in temp_df.columns):
+                    temp_cols = [str(c).lower() for c in temp_df.columns]
+                    if any(col in temp_cols for col in ['snippet', 'full text', 'texto', 'mention', 'text']):
                         return temp_df
             return df
-        except Exception:
-            pass # Si falla, es un CSV disfrazado de Excel, pasamos a la siguiente prueba
-
-    # Intentar como CSV con distintas codificaciones (UTF-8, Latin-1, etc.)
-    codificaciones = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
-    
-    for cod in codificaciones:  # <--- ¡AQUÍ ESTABA EL ERROR! CORREGIDO A 'in'
-        try:
-            archivo.seek(0)
-            contenido = archivo.read().decode(cod)
-            lineas = contenido.split('\n')
+        except ImportError:
+            st.error("❌ Falla crítica: No tienes instalado el motor para leer Excel. Ve a tu terminal, detén la aplicación y ejecuta: **pip install openpyxl**")
+            st.stop()
+        except Exception as e:
+            st.error(f"❌ El archivo de Excel está dañado o tiene un formato extraño. Error interno: {e}")
+            st.stop()
             
-            # Buscar en qué línea están los encabezados típicos de Brandwatch
-            skip_idx = 0
-            for i, linea in enumerate(lineas[:20]):
-                if any(k in linea for k in ['Snippet', 'Full Text', 'Date', 'Mention', 'Text']):
-                    skip_idx = i
-                    break
-            
-            archivo.seek(0)
-            df = pd.read_csv(archivo, encoding=cod, skiprows=skip_idx, on_bad_lines='skip', sep=None, engine='python')
-            
-            if not df.empty:
-                return df
+    else:
+        # Si NO es excel, intentar como texto CSV con distintas codificaciones
+        codificaciones = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
+        for cod in codificaciones:
+            try:
+                archivo.seek(0)
+                contenido = archivo.read().decode(cod)
+                lineas = contenido.split('\n')
                 
-        except Exception:
-            continue # Si esta codificación falla, intenta con la siguiente
-            
-    return None
+                skip_idx = 0
+                for i, linea in enumerate(lineas[:20]):
+                    if any(k in linea for k in ['Snippet', 'Full Text', 'Date', 'Mention', 'Text']):
+                        skip_idx = i
+                        break
+                
+                archivo.seek(0)
+                df = pd.read_csv(archivo, encoding=cod, skiprows=skip_idx, on_bad_lines='skip', sep=None, engine='python')
+                
+                if not df.empty:
+                    return df
+            except Exception:
+                continue
+                
+        return None
 
 # 4. Carga del archivo 
 archivo_subido = st.file_uploader("Sube el archivo de Brandwatch (Excel o CSV)", type=["xlsx", "xls", "csv"])
