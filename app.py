@@ -13,15 +13,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🚗 Radar de Riesgo Reputacional y Soporte")
-st.markdown("**Sube tu exportación de Brandwatch (Recomendamos formato CSV) para analizar fricciones y generar alertas.**")
+st.markdown("**Sube tu exportación de Brandwatch para analizar fricciones y generar alertas operativas.**")
 
 # 2. Motor de Clasificación
 def clasificar_mencion(texto):
     if not isinstance(texto, str):
         return "Desconocido"
-    
     texto = texto.lower()
-    
     if any(palabra in texto for palabra in ["ley uber", "bencina", "combustible", "gobierno", "ministro", "noticia"]):
         return "Ruido Mediático (Descartado)"
     if any(palabra in texto for palabra in ["cobro", "tarifa", "cobraron", "estafa", "robo", "promoción", "condiciones", "plata"]):
@@ -32,74 +30,64 @@ def clasificar_mencion(texto):
         return "Disponibilidad y Tiempos"
     if any(palabra in texto for palabra in ["penca", "callampa", "ctm", "hoyo", "weas", "qlo"]):
         return "Queja Genérica / Frustración"
-    
     return "Neutral / Positivo"
 
-# 3. Función detectora blindada
+# 3. Función detectora de memoria RAM (Especial para la nube)
 def cargar_datos_robustos(archivo):
-    cabecera = archivo.read(4)
-    archivo.seek(0)
+    # Leer el archivo completo en la memoria de la nube para evitar problemas de lectura
+    file_bytes = archivo.read()
     
-    es_excel_real = (cabecera == b'PK\x03\x04') or archivo.name.endswith(('.xls', '.xlsx'))
-    
-    if es_excel_real:
+    # Si los primeros bytes son PK, es 100% un archivo de Excel
+    if file_bytes.startswith(b'PK\x03\x04'):
         try:
-            # Intento cuidadoso de leer Excel
-            df = pd.read_excel(archivo, engine='openpyxl')
+            buffer = io.BytesIO(file_bytes)
+            df = pd.read_excel(buffer, engine='openpyxl')
+            
+            # Buscar dónde empiezan los datos reales si hay metadatos
             columnas_minusculas = [str(c).lower() for c in df.columns]
-            
-            # Si no encuentra la columna de texto, busca más abajo
             if not any(col in columnas_minusculas for col in ['snippet', 'full text', 'text', 'texto', 'mention']):
-                for i in range(1, 20):
-                    archivo.seek(0)
-                    try:
-                        temp_df = pd.read_excel(archivo, skiprows=i, engine='openpyxl')
-                        temp_cols = [str(c).lower() for c in temp_df.columns]
-                        if any(col in temp_cols for col in ['snippet', 'full text', 'texto', 'mention', 'text']):
-                            return temp_df
-                    except Exception:
-                        break # Si falla al saltar filas (ej. list index out of range), rompe el ciclo
+                for i in range(1, 25):
+                    buffer.seek(0)
+                    temp_df = pd.read_excel(buffer, skiprows=i, engine='openpyxl')
+                    temp_cols = [str(c).lower() for c in temp_df.columns]
+                    if any(col in temp_cols for col in ['snippet', 'full text', 'texto', 'mention', 'text']):
+                        return temp_df
             return df
-        except Exception:
-            # Si el Excel de Brandwatch está corrupto, NO rompemos la app, pasamos al intento de texto
-            pass
-
-    # Intento de lectura como texto plano / CSV
-    codificaciones = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
-    for cod in codificaciones:
-        try:
-            archivo.seek(0)
-            contenido = archivo.read().decode(cod)
-            lineas = contenido.split('\n')
+        except ImportError:
+            st.error("❌ ERROR CRÍTICO EN LA NUBE: Streamlit Cloud no tiene instalado 'openpyxl'. Por favor, revisa tu archivo requirements.txt en GitHub.")
+            st.stop()
+        except Exception as e:
+            st.error(f"❌ ERROR AL LEER EL EXCEL: {e}. Te recomendamos exportar el archivo desde Brandwatch en formato CSV.")
+            st.stop()
             
-            skip_idx = 0
-            for i, linea in enumerate(lineas[:20]):
-                if any(k in linea for k in ['Snippet', 'Full Text', 'Date', 'Mention', 'Text']):
-                    skip_idx = i
-                    break
-            
-            archivo.seek(0)
-            df = pd.read_csv(archivo, encoding=cod, skiprows=skip_idx, on_bad_lines='skip', sep=None, engine='python')
-            if not df.empty:
-                return df
-        except Exception:
-            continue
-            
-    # Si todo falla, enviamos un mensaje claro
-    if es_excel_real:
-        st.error("❌ El archivo de Excel generado por Brandwatch tiene un formato interno incompatible con la nube. **Por favor, vuelve a Brandwatch, exporta el archivo en formato CSV**, y súbelo nuevamente.")
-        st.stop()
-        
+    else:
+        # Si NO es Excel, intentar como texto plano / CSV
+        codificaciones = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
+        for cod in codificaciones:
+            try:
+                contenido = file_bytes.decode(cod)
+                lineas = contenido.split('\n')
+                skip_idx = 0
+                for i, linea in enumerate(lineas[:20]):
+                    if any(k in linea for k in ['Snippet', 'Full Text', 'Date', 'Mention', 'Text']):
+                        skip_idx = i
+                        break
+                buffer = io.StringIO(contenido)
+                df = pd.read_csv(buffer, skiprows=skip_idx, on_bad_lines='skip', sep=None, engine='python')
+                if not df.empty:
+                    return df
+            except Exception:
+                continue
     return None
 
 # 4. Carga del archivo 
-archivo_subido = st.file_uploader("Sube el archivo de Brandwatch (Recomendado: CSV)", type=["csv", "xlsx", "xls"])
+archivo_subido = st.file_uploader("Sube el archivo de Brandwatch (Excel o CSV)", type=["xlsx", "xls", "csv"])
 
 if archivo_subido is not None:
     df = cargar_datos_robustos(archivo_subido)
     
     if df is None or df.empty:
-        st.error("❌ No se pudo extraer información. Asegúrate de que no sea un archivo vacío.")
+        st.error("❌ No se pudo extraer información válida del archivo.")
         st.stop()
     
     columna_texto = None
@@ -140,7 +128,7 @@ if archivo_subido is not None:
         elif categoria_top == "Actitud del Conductor / Calidad":
             st.warning("**ALERTA AMARILLA - CALIDAD:** Fricciones a bordo (ej. aire acondicionado, trato).")
         elif categoria_top == "Disponibilidad y Tiempos":
-            st.warning("**ALERTA AMARILLA - DISPONIBILIDAD:** Cancelaciones frecuentes o demora excesiva.")
+            st.warning("**ALERTA AMARILLA - DISPONIBILIDAD:** Cancelaciones o demoras excesivas.")
             
         st.subheader("📝 Detalle de Menciones Críticas")
         columnas_mostrar = [col for col in ['Date', 'Author', columna_texto, 'Categoría de Riesgo'] if col in df.columns]
