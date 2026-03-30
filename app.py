@@ -25,7 +25,7 @@ def clasificar_mencion(texto):
     if any(palabra in texto for palabra in ["ley uber", "bencina", "combustible", "gobierno", "ministro", "noticia"]):
         return "Ruido Mediático (Descartado)"
     
-    if any(palabra in texto for palabra in ["cobro", "tarifa", "cobraron", "estafa", "robo", "promoción", "condiciones"]):
+    if any(palabra in texto for palabra in ["cobro", "tarifa", "cobraron", "estafa", "robo", "promoción", "condiciones", "plata"]):
         return "Cobros y Tarifas"
     
     if any(palabra in texto for palabra in ["aire", "calor", "conductor", "auto", "rasca", "pésimo", "grosero", "maneja"]):
@@ -34,63 +34,66 @@ def clasificar_mencion(texto):
     if any(palabra in texto for palabra in ["espera", "toman", "cancel", "demora", "no llega", "app", "falla"]):
         return "Disponibilidad y Tiempos"
     
-    if any(palabra in texto for palabra in ["penca", "callampa", "ctm", "hoyo", "weas"]):
+    if any(palabra in texto for palabra in ["penca", "callampa", "ctm", "hoyo", "weas", "qlo"]):
         return "Queja Genérica / Frustración"
     
     return "Neutral / Positivo"
 
-# Función para encontrar dinámicamente dónde empieza la tabla real de Brandwatch
+# 3. Función blindada para leer el archivo sin errores de formato
 def cargar_datos_robustos(archivo):
-    # Intentar leer primero asumiendo que es un Excel puro
-    try:
-        # A veces Brandwatch pone los datos en la fila 8 o 10
-        df = pd.read_excel(archivo)
-        
-        # Si la primera columna no parece correcta, buscar la cabecera real
-        if 'Snippet' not in df.columns and 'Full Text' not in df.columns and 'Texto' not in df.columns:
-            # Volver al inicio del archivo
-            archivo.seek(0)
-            # Leer ignorando las primeras 10 filas de metadatos
-            for i in range(1, 15):
-                archivo.seek(0)
-                temp_df = pd.read_excel(archivo, skiprows=i)
-                if any(col.lower() in ['snippet', 'full text', 'texto', 'mention'] for col in temp_df.columns):
-                    return temp_df
-        return df
-
-    except Exception:
-        # Si falla (list index out of range), es porque en realidad es un CSV disfrazado de Excel
-        archivo.seek(0)
+    # Intentar como Excel nativo primero
+    if archivo.name.endswith(('.xls', '.xlsx')):
         try:
-            # Leer como CSV ignorando posibles errores de líneas
-            contenido = archivo.read().decode('utf-8', errors='ignore')
-            # Buscar en qué línea están los encabezados típicos
+            df = pd.read_excel(archivo)
+            # Buscar dónde empiezan los datos reales si hay metadatos de Brandwatch
+            if not any(col.lower() in ['snippet', 'full text', 'text', 'texto', 'mention'] for col in df.columns):
+                for i in range(1, 15):
+                    archivo.seek(0)
+                    temp_df = pd.read_excel(archivo, skiprows=i)
+                    if any(col.lower() in ['snippet', 'full text', 'texto', 'mention', 'text'] for col in temp_df.columns):
+                        return temp_df
+            return df
+        except Exception:
+            pass # Si falla, es un CSV disfrazado de Excel, pasamos a la siguiente prueba
+
+    # Intentar como CSV con distintas codificaciones (UTF-8, Latin-1, etc.)
+    codificaciones = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252', 'iso-8859-1']
+    
+    for cod en codificaciones:
+        try:
+            archivo.seek(0)
+            contenido = archivo.read().decode(cod)
             lineas = contenido.split('\n')
+            
+            # Buscar en qué línea están los encabezados típicos de Brandwatch
             skip_idx = 0
             for i, linea in enumerate(lineas[:20]):
-                if 'Snippet' in linea or 'Full Text' in linea or 'Date' in linea:
+                if any(k in linea for k in ['Snippet', 'Full Text', 'Date', 'Mention', 'Text']):
                     skip_idx = i
                     break
             
-            # Volver a leer usando CSV desde la línea correcta
             archivo.seek(0)
-            df = pd.read_csv(archivo, skiprows=skip_idx, on_bad_lines='skip')
-            return df
-        except Exception as e:
-            st.error(f"Error crítico al procesar el texto: {e}")
-            return None
+            df = pd.read_csv(archivo, encoding=cod, skiprows=skip_idx, on_bad_lines='skip', sep=None, engine='python')
+            
+            if not df.empty:
+                return df
+                
+        except Exception:
+            continue # Si esta codificación falla, intenta con la siguiente
+            
+    return None
 
-# 3. Carga del archivo 
+# 4. Carga del archivo 
 archivo_subido = st.file_uploader("Sube el archivo de Brandwatch (Excel o CSV)", type=["xlsx", "xls", "csv"])
 
 if archivo_subido is not None:
     df = cargar_datos_robustos(archivo_subido)
     
     if df is None or df.empty:
-        st.error("No se pudo extraer información válida del archivo. Por favor, asegúrate de que sea la exportación de 'Mentions'.")
+        st.error("❌ No se pudo extraer información válida del archivo. Revisa que no esté en blanco.")
         st.stop()
     
-    # 4. Buscar la columna de texto dinámicamente
+    # Buscar la columna de texto dinámicamente
     columna_texto = None
     for col in df.columns:
         if str(col).lower() in ['snippet', 'full text', 'text', 'texto', 'mention']:
@@ -98,7 +101,7 @@ if archivo_subido is not None:
             break
             
     if not columna_texto:
-        st.error(f"El archivo se leyó, pero no se encontró la columna de los mensajes. Columnas detectadas: {list(df.columns)}")
+        st.error(f"❌ El archivo se leyó bien, pero no encontré la columna de los mensajes. Columnas detectadas: {list(df.columns)}")
         st.stop()
 
     # 5. Procesamiento de los datos
@@ -134,8 +137,9 @@ if archivo_subido is not None:
             st.info("Revisar el listado de quejas genéricas para identificar nuevos focos de fricción.")
 
         st.subheader("📝 Detalle de Menciones Críticas")
+        # Mostrar solo las columnas relevantes
         columnas_mostrar = [col for col in ['Date', 'Author', columna_texto, 'Categoría de Riesgo'] if col in df.columns]
         st.dataframe(df_quejas[columnas_mostrar], use_container_width=True)
         
     else:
-        st.success("No se detectaron quejas significativas de riesgo en este archivo.")
+        st.success("✅ No se detectaron quejas significativas de riesgo en este archivo.")
