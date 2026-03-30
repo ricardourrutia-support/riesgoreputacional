@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 
 # 1. Configuración de la página (Estilo Cabify)
 st.set_page_config(page_title="Cabify - Radar de Riesgo", page_icon="🚗", layout="wide")
@@ -12,7 +13,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("🚗 Radar de Riesgo Reputacional y Soporte")
-st.markdown("**Sube tu exportación de Brandwatch (Excel o CSV) para analizar fricciones, categorizar quejas y generar alertas operativas.**")
+st.markdown("**Sube tu exportación de Brandwatch para analizar fricciones, categorizar quejas y generar alertas operativas.**")
 
 # 2. Motor de Clasificación (Simulación de IA)
 def clasificar_mencion(texto):
@@ -38,33 +39,70 @@ def clasificar_mencion(texto):
     
     return "Neutral / Positivo"
 
-# 3. Carga del archivo (AHORA ACEPTA EXCEL Y CSV)
-archivo_subido = st.file_uploader("Sube el archivo de Brandwatch (Excel o CSV)", type=["xlsx", "csv"])
+# Función para encontrar dinámicamente dónde empieza la tabla real de Brandwatch
+def cargar_datos_robustos(archivo):
+    # Intentar leer primero asumiendo que es un Excel puro
+    try:
+        # A veces Brandwatch pone los datos en la fila 8 o 10
+        df = pd.read_excel(archivo)
+        
+        # Si la primera columna no parece correcta, buscar la cabecera real
+        if 'Snippet' not in df.columns and 'Full Text' not in df.columns and 'Texto' not in df.columns:
+            # Volver al inicio del archivo
+            archivo.seek(0)
+            # Leer ignorando las primeras 10 filas de metadatos
+            for i in range(1, 15):
+                archivo.seek(0)
+                temp_df = pd.read_excel(archivo, skiprows=i)
+                if any(col.lower() in ['snippet', 'full text', 'texto', 'mention'] for col in temp_df.columns):
+                    return temp_df
+        return df
+
+    except Exception:
+        # Si falla (list index out of range), es porque en realidad es un CSV disfrazado de Excel
+        archivo.seek(0)
+        try:
+            # Leer como CSV ignorando posibles errores de líneas
+            contenido = archivo.read().decode('utf-8', errors='ignore')
+            # Buscar en qué línea están los encabezados típicos
+            lineas = contenido.split('\n')
+            skip_idx = 0
+            for i, linea in enumerate(lineas[:20]):
+                if 'Snippet' in linea or 'Full Text' in linea or 'Date' in linea:
+                    skip_idx = i
+                    break
+            
+            # Volver a leer usando CSV desde la línea correcta
+            archivo.seek(0)
+            df = pd.read_csv(archivo, skiprows=skip_idx, on_bad_lines='skip')
+            return df
+        except Exception as e:
+            st.error(f"Error crítico al procesar el texto: {e}")
+            return None
+
+# 3. Carga del archivo 
+archivo_subido = st.file_uploader("Sube el archivo de Brandwatch (Excel o CSV)", type=["xlsx", "xls", "csv"])
 
 if archivo_subido is not None:
-    try:
-        # Detectar el tipo de archivo y leerlo
-        if archivo_subido.name.endswith('.csv'):
-            df = pd.read_csv(archivo_subido)
-        else:
-            df = pd.read_excel(archivo_subido)
-    except Exception as e:
-        st.error(f"Error al leer el archivo. Asegúrate de que no esté dañado. Detalle: {e}")
+    df = cargar_datos_robustos(archivo_subido)
+    
+    if df is None or df.empty:
+        st.error("No se pudo extraer información válida del archivo. Por favor, asegúrate de que sea la exportación de 'Mentions'.")
         st.stop()
     
     # 4. Buscar la columna de texto dinámicamente
     columna_texto = None
     for col in df.columns:
-        if col.lower() in ['snippet', 'full text', 'text', 'texto', 'mention']:
+        if str(col).lower() in ['snippet', 'full text', 'text', 'texto', 'mention']:
             columna_texto = col
             break
             
     if not columna_texto:
-        st.error("No se encontró la columna de texto. El archivo debe tener una columna llamada 'Snippet', 'Full Text', 'Mention' o 'Text'.")
+        st.error(f"El archivo se leyó, pero no se encontró la columna de los mensajes. Columnas detectadas: {list(df.columns)}")
         st.stop()
 
     # 5. Procesamiento de los datos
-    df['Categoría de Riesgo'] = df[columna_texto].apply(clasificar_mencion)
+    df['Categoría de Riesgo'] = df[columna_texto].astype(str).apply(clasificar_mencion)
     df_quejas = df[~df['Categoría de Riesgo'].isin(["Ruido Mediático (Descartado)", "Neutral / Positivo", "Desconocido"])]
     
     # 6. Dashboard / Interfaz Visual
