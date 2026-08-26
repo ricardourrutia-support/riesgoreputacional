@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  :root{
+    --purple:#6C2EB9; --purple-dk:#241046; --lav:#B98BE8;
+    --green:#16B79A; --red:#F2495C; --ink:#2B2440;
+    --bg:#F7F5FB; --card:#FFFFFF; --line:#ECE7F3; --muted:#8A82A0;
+    --lav-soft:#EDE4F7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+       background:var(--bg);color:var(--ink);font-size:14px}
+  a{color:inherit}
+
+  /* Header */
+  header{background:linear-gradient(120deg,var(--purple-dk),var(--purple));color:#fff;
+         padding:18px 24px;box-shadow:0 2px 12px rgba(36,16,70,.18)}
+  header h1{margin:0;font-size:18px;font-weight:700;letter-spacing:.2px}
+  header .sub{opacity:.8;font-size:12px;margin-top:2px}
+
+  /* Tabs */
+  .tabs{display:flex;gap:6px;padding:0 24px;margin-top:14px}
+  .tab{background:rgba(255,255,255,.12);color:#fff;border:none;padding:8px 16px;border-radius:8px 8px 0 0;
+       cursor:pointer;font-size:13px;font-weight:600}
+  .tab.active{background:var(--bg);color:var(--purple-dk)}
+  .tab.disabled{opacity:.45;cursor:not-allowed}
+
+  .wrap{padding:20px 24px;max-width:1400px;margin:0 auto}
+
+  /* Filters */
+  .filters{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+           display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;box-shadow:0 1px 4px rgba(36,16,70,.05)}
+  .fg{display:flex;flex-direction:column;gap:6px}
+  .fg label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  input[type=date],select{border:1px solid var(--line);border-radius:9px;padding:9px 11px;font-size:13px;
+       background:#fff;color:var(--ink);min-width:150px;font-family:inherit}
+  input[type=date]:focus,select:focus{outline:2px solid var(--lav);border-color:var(--lav)}
+  .btn{background:var(--purple);color:#fff;border:none;border-radius:9px;padding:10px 20px;font-weight:700;
+       cursor:pointer;font-size:13px}
+  .btn:hover{background:#5a2599}
+  .btn.ghost{background:#fff;color:var(--purple);border:1px solid var(--lav)}
+
+  /* Multiselect franjas */
+  .ms{position:relative;min-width:190px}
+  .ms-btn{border:1px solid var(--line);border-radius:9px;padding:9px 11px;background:#fff;cursor:pointer;
+          font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .ms-btn .cnt{background:var(--lav-soft);color:var(--purple);border-radius:20px;padding:1px 9px;font-size:11px;font-weight:700}
+  .ms-panel{display:none;position:absolute;z-index:30;top:calc(100% + 4px);left:0;background:#fff;
+            border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(36,16,70,.18);
+            padding:10px;width:250px;max-height:260px;overflow:auto}
+  .ms-panel.open{display:block}
+  .ms-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+  .ms-chip{border:1px solid var(--line);border-radius:7px;padding:6px 0;text-align:center;cursor:pointer;font-size:12px;user-select:none}
+  .ms-chip.on{background:var(--purple);color:#fff;border-color:var(--purple)}
+  .ms-actions{display:flex;justify-content:space-between;margin-bottom:8px}
+  .ms-actions button{background:none;border:none;color:var(--purple);font-weight:700;font-size:12px;cursor:pointer}
+
+  /* KPI cards */
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+        box-shadow:0 1px 4px rgba(36,16,70,.05);position:relative;overflow:hidden}
+  .card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--lav)}
+  .card.res:before{background:var(--purple)}
+  .card.prog:before{background:var(--green)}
+  .card.aban:before{background:var(--red)}
+  .card.sat:before{background:#F2A93B}
+  .card .k-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .card .k-val{font-size:30px;font-weight:800;margin-top:6px;line-height:1}
+  .card .k-sub{font-size:11px;color:var(--muted);margin-top:6px}
+  .k-val.good{color:var(--green)} .k-val.bad{color:var(--red)}
+
+  /* Panel por coordinador */
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-top:18px;
+         box-shadow:0 1px 4px rgba(36,16,70,.05)}
+  .panel h2{margin:0 0 4px;font-size:15px}
+  .panel .hint{color:var(--muted);font-size:12px;margin-bottom:12px}
+
+  #coordPanel details,#covPanel details{border:1px solid var(--line);border-radius:10px;background:#fff;overflow:hidden}
+  #coordPanel summary,#covPanel summary{cursor:pointer;padding:10px 14px;font-weight:700;font-size:13px;display:flex;
+                      justify-content:space-between;align-items:center;list-style:none;user-select:none;
+                      background:var(--lav-soft);color:var(--purple-dk)}
+  #coordPanel summary::-webkit-details-marker,#covPanel summary::-webkit-details-marker{display:none}
+  #coordPanel summary .sum-r,#covPanel summary .sum-r{font-weight:800;color:var(--purple);font-size:12px}
+  #coordPanel .dt-scroll,#covPanel .dt-scroll{border:none;border-top:1px solid var(--line);border-radius:0}
+  table.dt .r-sub{display:block;font-size:10px;color:var(--muted);font-weight:400}
+  td.rt.good{color:var(--green);font-weight:700}
+  td.rt.bad{color:var(--red);font-weight:700}
+  td.rt{font-weight:700}
+  td.cov-click{cursor:pointer}
+  td.cov-click:hover{background:var(--lav-soft)}
+  td.cov-click.open{background:var(--lav-soft)}
+  .cov-caret{font-size:10px;color:var(--purple)}
+  td.cov-click.open .cov-caret{display:inline-block;transform:rotate(180deg)}
+  tr.cov-detail > td{background:#FBFAFE;padding:10px 14px}
+  .cov-h{font-size:12px;font-weight:700;color:var(--purple);margin-bottom:8px}
+  table.cov-inner{width:100%;font-size:11px}
+  table.cov-inner th{background:var(--lav-soft);color:var(--purple-dk);position:static}
+  table.cov-inner td{vertical-align:top}
+  .cov-when{color:var(--muted);font-weight:400;line-height:1.6}
+
+  /* Pie de diagnóstico */
+  #perf{display:none;margin:14px 2px 0;font-size:11px;color:var(--muted);
+        gap:14px;flex-wrap:wrap;align-items:center}
+  #perf.on{display:flex}
+  #perf .p-i{display:flex;gap:5px;align-items:center}
+  #perf b{color:var(--ink);font-weight:700}
+  #perf .p-warn b{color:var(--red)}
+  #perf .p-warn{color:var(--red)}
+  #perf .p-ok b{color:var(--green)}
+
+  /* Heatmap */
+  .hm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .hm-scroll{overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:10px}
+  table.hm{border-collapse:separate;border-spacing:2px;padding:4px}
+  table.hm th{position:sticky;background:var(--bg);z-index:2;font-size:11px;color:var(--muted);font-weight:700;padding:4px 6px}
+  table.hm thead th{top:0}
+  table.hm tbody th{left:0;text-align:right;white-space:nowrap;padding-right:10px}
+  .cell{width:30px;height:26px;border-radius:5px;cursor:pointer;background:#F3F4F6;transition:transform .06s}
+  .cell:hover{transform:scale(1.18);outline:2px solid var(--purple-dk);z-index:5;position:relative}
+  .cell.empty{cursor:default;background:#FAFAFB;border:1px dashed #EFECF5}
+
+  .legend{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11px;color:var(--muted)}
+  .legend .bar{height:10px;width:160px;border-radius:6px;background:linear-gradient(90deg,var(--lav-soft),var(--red))}
+
+  /* Tooltip */
+  #tip{position:fixed;z-index:100;pointer-events:none;background:var(--purple-dk);color:#fff;border-radius:10px;
+       padding:10px 12px;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.28);display:none;min-width:220px}
+  #tip .tt-h{font-weight:800;margin-bottom:6px;font-size:12px;color:var(--lav)}
+  #tip .tt-r{display:flex;justify-content:space-between;gap:16px;margin:2px 0}
+  #tip .tt-r span:last-child{font-weight:700}
+
+  /* Detail */
+  #detail{margin-top:16px;display:none}
+  #detail .dt-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  #detail .badge{background:var(--lav-soft);color:var(--purple);border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700}
+  table.dt{width:100%;border-collapse:collapse;font-size:12px}
+  table.dt th{background:var(--purple-dk);color:#fff;text-align:left;padding:8px 10px;font-weight:600;position:sticky;top:0}
+  table.dt td{padding:7px 10px;border-bottom:1px solid var(--line)}
+  table.dt tr:nth-child(even) td{background:#FBFAFE}
+  .dt-scroll{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+
+  /* Detail sub-sections */
+  .dt-section{margin-top:18px}
+  .dt-section h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--purple);margin:0 0 8px;
+                 border-bottom:2px solid var(--lav-soft);padding-bottom:5px}
+  .dt-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}
+  .mini{background:#FBFAFE;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .mini .m-l{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  .mini .m-v{font-size:20px;font-weight:800;margin-top:3px}
+  .mini .m-s{font-size:10px;color:var(--muted);margin-top:2px}
+  .m-v.good{color:var(--green)} .m-v.bad{color:var(--red)}
+  .mini.click{cursor:pointer;border-color:var(--lav)}
+  .mini.click:hover{background:var(--lav-soft)}
+  .mini.click.open{background:var(--lav-soft);outline:2px solid var(--lav)}
+  .plate-tot{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .pt{border-radius:10px;padding:8px 14px;font-weight:800;font-size:14px}
+  .pt.n{background:#EAF7F3;color:var(--green)} .pt.c{background:var(--lav-soft);color:var(--purple)}
+  .pt.x{background:#FFF4E5;color:#B7791F}
+  .pt.err{background:#FDEBEE;color:var(--red)}
+  .pt small{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase}
+  .st-chip{display:inline-block;border-radius:12px;padding:2px 10px;font-size:11px;font-weight:700}
+  .st-chip.ok{background:#EAF7F3;color:var(--green)}
+  .st-chip.bad{background:#FDEBEE;color:var(--red)}
+  .warn{background:#FFF4E5;border:1px solid #F5D9A8;color:#8A5B00;border-radius:12px;
+        padding:11px 15px;font-size:13px;margin-bottom:14px}
+  .status{color:var(--muted);font-size:13px;padding:40px;text-align:center}
+  .spin{display:inline-block;width:16px;height:16px;border:2px solid var(--lav);border-top-color:var(--purple);
+        border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+
+  /* WHB drill-down (Producto -> Flota -> Patente) */
+  #whbTree details{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fff;overflow:hidden}
+  #whbTree summary{cursor:pointer;padding:9px 14px;font-weight:700;font-size:13px;display:flex;
+                   justify-content:space-between;align-items:center;list-style:none;user-select:none}
+  #whbTree summary::-webkit-details-marker{display:none}
+  #whbTree summary .sum-r{font-weight:800;color:var(--purple);font-size:12px;white-space:nowrap}
+  #whbTree details.lvl-prod > summary{background:var(--lav-soft);color:var(--purple-dk)}
+  #whbTree details.lvl-comp{margin:6px 10px}
+  #whbTree details.lvl-comp > summary{background:#FBFAFE;font-weight:600}
+  #whbTree .plate-tbl{margin:0 10px 10px}
+</style>
+</head>
+<body>
+  <header>
+    <h1>[CL] Airport Performance · Coordinators &amp; Fleets</h1>
+    <div class="sub">Aeropuerto SCL · Turnos desde Turnos 360 (franjas administrativas excluidas)</div>
+    <div class="tabs">
+      <button class="tab active" data-tab="resumen">Vista Resumen</button>
+      <button class="tab disabled" title="En construcción">Vista Detalle</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- Aviso de turnos -->
+    <div class="warn" id="warn" style="display:none"></div>
+
+    <!-- Filtros -->
+    <div class="filters">
+      <div class="fg">
+        <label>Desde</label>
+        <input type="date" id="dFrom">
+      </div>
+      <div class="fg">
+        <label>Hasta</label>
+        <input type="date" id="dTo">
+      </div>
+      <div class="fg">
+        <label>Franja horaria</label>
+        <div class="ms">
+          <div class="ms-btn" id="msBtn"><span id="msLabel">Todas</span><span class="cnt" id="msCnt">24</span></div>
+          <div class="ms-panel" id="msPanel">
+            <div class="ms-actions">
+              <button id="msAll">Todas</button>
+              <button id="msNone">Ninguna</button>
+            </div>
+            <div class="ms-grid" id="msGrid"></div>
+          </div>
+        </div>
+      </div>
+      <div class="fg">
+        <label>Coordinador</label>
+        <select id="selCoord"><option value="__ALL__">Todos</option></select>
+      </div>
+      <button class="btn" id="btnApply">Aplicar</button>
+      <button class="btn ghost" id="btnRefresh" title="Ignora el caché y recalcula con la data actual">↻ Recalcular</button>
+    </div>
+
+    <!-- KPIs -->
+    <div class="cards" id="cards" style="display:none">
+      <div class="card"><div class="k-label">Time Losa &gt;30</div><div class="k-val" id="kLosa">–</div><div class="k-sub" id="kLosaN"></div></div>
+      <div class="card"><div class="k-label">Time DO &gt;90</div><div class="k-val" id="kJrn">–</div><div class="k-sub" id="kJrnN"></div><div class="k-sub" id="kJrnDir"></div></div>
+      <div class="card"><div class="k-label">Time Pick Up Hacia Aero</div><div class="k-val" id="kPkp">–</div><div class="k-sub" id="kPkpN"></div></div>
+      <div class="card res"><div class="k-label">N° Rescates</div><div class="k-val" id="kRes">–</div><div class="k-sub">rescates en el período</div></div>
+      <div class="card aban"><div class="k-label">N° Abandonos</div><div class="k-val" id="kAban">–</div><div class="k-sub">abandonos compensados en el período</div></div>
+      <div class="card prog"><div class="k-label">Disponibilidad Programada</div><div class="k-val" id="kProg">–</div><div class="k-sub">vans-franja informadas a conectar</div></div>
+      <div class="card prog"><div class="k-label">Conectado de lo Programado</div><div class="k-val" id="kConn">–</div><div class="k-sub" id="kConnN"></div></div>
+      <div class="card prog"><div class="k-label">No Conectado de lo Programado</div><div class="k-val" id="kNoConn">–</div><div class="k-sub" id="kNoConnN"></div></div>
+      <div class="card res"><div class="k-label">Working Hours Busy Totales</div><div class="k-val" id="kWhb">–</div><div class="k-sub">horas busy en el período (todas las vans)</div></div>
+      <div class="card prog"><div class="k-label">Cumplimiento de Flota</div><div class="k-val" id="kCumpl">–</div><div class="k-sub" id="kCumplN"></div></div>
+      <div class="card sat"><div class="k-label">Saturación Programada</div><div class="k-val" id="kSatProg">–</div><div class="k-sub" id="kSatProgN"></div></div>
+      <div class="card sat"><div class="k-label">Saturación Neta</div><div class="k-val" id="kSatNeta">–</div><div class="k-sub" id="kSatNetaN"></div></div>
+    </div>
+
+    <!-- Indicadores por coordinador -->
+    <div class="panel" id="coordPanel" style="display:none">
+      <details id="coordDetails">
+        <summary><span>Indicadores por coordinador</span><span class="sum-r" id="coordCount"></span></summary>
+        <div class="dt-scroll" style="max-height:420px"><table class="dt" id="coordTable"></table></div>
+      </details>
+      <div class="hint" style="margin:8px 0 0">KPIs de cada coordinador sobre los bloques (fecha × hora) en que estuvo de turno según Turnos 360, <b>excluyendo sus franjas administrativas</b> (05→16: 11/12/13 · 10→21: 10/14/15 · 13→00: 17/18/19 · 21→08: 6/7/8). Los bloques con más de un coordinador de turno se atribuyen a todos ellos.</div>
+    </div>
+
+    <!-- Cobertura por flota -->
+    <div class="panel" id="covPanel" style="display:none">
+      <details id="covDetails">
+        <summary><span>Cobertura del registro de conexiones por flota</span><span class="sum-r" id="covCount"></span></summary>
+        <div class="dt-scroll" style="max-height:320px"><table class="dt" id="covTable"></table></div>
+      </details>
+      <div class="hint" style="margin:8px 0 0"><b>Cumplimiento de la Flota</b>: patentes distintas programadas que se conectaron al menos una vez en un bloque que tenían asignado, sobre el total de patentes programadas. <b>Sat. Programada</b>: horas busy de esas patentes contra el techo teórico de 1 h por slot programado. <b>Conectados</b> mide lo mismo pero por par patente×hora (vans-franja), así que si el cumplimiento es alto y los conectados bajos, las vans aparecen pero cumplen pocas horas: <b>haz clic en ese porcentaje</b> para ver qué patentes concentran las vans-franja sin conexión. <b>Saturación Neta</b>: horas busy contra las horas que la flota realmente estuvo conectada, incluyendo patentes no programadas — mide qué tan ocupada estuvo la van cuando sí estaba disponible. Bajo el nombre de la flota se avisa si tiene patentes programadas que no figuran en el export "WH Busy By Patente": eso es un hueco del CSV, no vans que dejaron de conectarse.</div>
+    </div>
+
+    <!-- Heatmap -->
+    <div class="panel" id="hmPanel" style="display:none">
+      <div class="hm-head">
+        <div>
+          <h2 id="hmTitle">Mapa de calor</h2>
+          <div class="hint">Fecha × franja horaria (bloques de 1 h). Hover: KPIs del cuadro · clic: detalle del bloque.</div>
+        </div>
+        <div class="fg">
+          <label>Variable</label>
+          <select id="selVar">
+            <option value="res">N° Rescates</option>
+            <option value="aban">N° Abandonos</option>
+            <option value="losa">Time Losa &gt;30</option>
+            <option value="jrn">Time DO &gt;90</option>
+            <option value="pkp">Time Pick Up Hacia Aero</option>
+            <option value="prog">Disponibilidad Programada</option>
+            <option value="noconn">No Conectadas (programadas)</option>
+            <option value="satProg">Saturación Programada</option>
+            <option value="satNeta">Saturación Neta</option>
+          </select>
+        </div>
+      </div>
+      <div class="hm-scroll" id="hmScroll"></div>
+      <div class="legend"><span>0</span><span class="bar"></span><span id="legMax">máx</span><span id="legUnit"></span></div>
+    </div>
+
+    <!-- Detalle -->
+    <div class="panel" id="detail">
+      <div class="dt-head">
+        <div><h2 id="dtTitle" style="margin:0">Detalle del bloque</h2><div class="hint" id="dtCoords" style="margin:2px 0 0"></div></div>
+      </div>
+
+      <div class="dt-section">
+        <h3>Indicadores del bloque</h3>
+        <div class="dt-kpis">
+          <div class="mini"><div class="m-l">Time Losa &gt;30</div><div class="m-v" id="mLosa">–</div><div class="m-s" id="mLosaN"></div></div>
+          <div class="mini"><div class="m-l">Time DO &gt;90</div><div class="m-v" id="mJrn">–</div><div class="m-s" id="mJrnN"></div></div>
+          <div class="mini"><div class="m-l">Time Pick Up Hacia Aero</div><div class="m-v" id="mPkp">–</div><div class="m-s" id="mPkpN"></div></div>
+          <div class="mini"><div class="m-l">N° Rescates</div><div class="m-v" id="mRes">–</div><div class="m-s">en el bloque</div></div>
+          <div class="mini"><div class="m-l">N° Abandonos</div><div class="m-v" id="mAban">–</div><div class="m-s">en el bloque</div></div>
+          <div class="mini"><div class="m-l">Sat. Programada</div><div class="m-v" id="mSatProg">–</div><div class="m-s">WHB programada / techo teórico</div></div>
+          <div class="mini"><div class="m-l">Sat. Neta</div><div class="m-v" id="mSatNeta">–</div><div class="m-s">WHB / WH conectada</div></div>
+          <div class="mini"><div class="m-l">Programadas</div><div class="m-v" id="mProg">–</div><div class="m-s" id="mProgN"></div></div>
+          <div class="mini click" id="mWhbCard" title="Clic para ver detalle por Producto / Flota / Patente">
+            <div class="m-l">WH Busy ▾</div><div class="m-v" id="mWhb">–</div><div class="m-s">clic: por producto/flota/patente</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Drill-down WH Busy -->
+      <div class="dt-section" id="whbSection" style="display:none">
+        <h3>Working Hours Busy · Producto → Flota → Patente</h3>
+        <div id="whbTree"></div>
+      </div>
+
+      <!-- Programación del bloque -->
+      <div class="dt-section">
+        <h3>Vans programadas · Programación Turnos &amp; Patentes</h3>
+        <div class="plate-tot" id="progSum"></div>
+        <div class="dt-scroll" style="max-height:300px"><table class="dt" id="progTable"></table></div>
+      </div>
+
+      <div class="dt-section">
+        <h3>Vans conectadas · Registro de Conexiones Efectivas</h3>
+        <div class="hint"><b>Productos DO</b> cruza esta hoja con Doxproductname por patente y bloque. Doxproductname solo guarda el <b>inicio</b> del viaje, así que la columna lista los Drop Offs <b>iniciados dentro de esta hora</b>. Una van con WH Busy alto y sin productos listados casi siempre está terminando un DO que empezó en la hora anterior.</div>
+        <div class="plate-tot" id="conexSum"></div>
+        <div class="dt-scroll" style="max-height:300px"><table class="dt" id="conexTable"></table></div>
+      </div>
+
+      <div class="dt-section">
+        <h3>Detalle de rescates</h3>
+        <div class="dt-scroll"><table class="dt" id="resTable"></table></div>
+      </div>
+
+      <div class="dt-section">
+        <h3>Detalle de abandonos</h3>
+        <div class="dt-scroll"><table class="dt" id="abanTable"></table></div>
+      </div>
+    </div>
+
+    <div class="status" id="status"><span class="spin"></span>Cargando dashboard…</div>
+    <div id="perf" title="Dónde se va el tiempo de cada carga"></div>
+  </div>
+
+  <div id="tip"></div>
+
+<script>
+  var CFG = null, LAST = null;
+  var hourSel = {};  // {0:true,...}
+  var REQUEST_SEQ = 0;
+  var IS_LOADING = false;
+
+  /* Variables disponibles para el heatmap */
+  var METRICS = {
+    res:     { label: 'N° Rescates',                  kind: 'count' },
+    aban:    { label: 'N° Abandonos',                 kind: 'count' },
+    losa:    { label: 'Time Losa >30',                kind: 'rate'  },
+    jrn:     { label: 'Time DO >90',                  kind: 'rate'  },
+    pkp:     { label: 'Time Pick Up Hacia Aero',      kind: 'rate'  },
+    satProg: { label: 'Saturación Programada',        kind: 'rate'  },
+    satNeta: { label: 'Saturación Neta',              kind: 'rate'  },
+    prog:    { label: 'Disponibilidad Programada',    kind: 'count' },
+    noconn:  { label: 'No Conectadas (programadas)',  kind: 'count' }
+  };
+
+  /* ---------- init: UNA sola llamada para configuración + resumen ---------- */
+  setLoading(true, 'Cargando dashboard…');
+  var T0 = Date.now();
+  google.script.run
+    .withSuccessHandler(onInitialPayload)
+    .withFailureHandler(onErr)
+    .getInitialPayload();
+
+  function onInitialPayload(payload){
+    setupConfig(payload.cfg);
+    render(payload.summary);
+    setLoading(false);
+  }
+
+  function setupConfig(cfg){
+    CFG = cfg;
+    var dF = document.getElementById('dFrom'), dT = document.getElementById('dTo');
+    dF.min = cfg.dateMin; dF.max = cfg.dateMax; dF.value = cfg.defFrom || cfg.dateMin;
+    dT.min = cfg.dateMin; dT.max = cfg.dateMax; dT.value = cfg.dateMax;
+
+    // coordinadores
+    var sel = document.getElementById('selCoord');
+    while(sel.options.length > 1) sel.remove(1);
+    cfg.coords.forEach(function(c){
+      var o=document.createElement('option');
+      o.value=c; o.textContent=c; sel.appendChild(o);
+    });
+    sel.disabled = !cfg.coords.length;
+    showWarn(cfg.shiftWarning);
+
+    // franjas
+    hourSel = {};
+    var grid = document.getElementById('msGrid');
+    grid.innerHTML = '';
+    cfg.hours.forEach(function(h){
+      hourSel[h]=true;
+      var chip=document.createElement('div');
+      chip.className='ms-chip on'; chip.textContent=pad(h); chip.dataset.h=h;
+      chip.onclick=function(){ hourSel[h]=!hourSel[h]; chip.classList.toggle('on',hourSel[h]); refreshMsLabel(); };
+      grid.appendChild(chip);
+    });
+    refreshMsLabel();
+  }
+
+  function setLoading(loading, message){
+    IS_LOADING = loading;
+    var st=document.getElementById('status');
+    var applyBtn=document.getElementById('btnApply');
+    var refreshBtn=document.getElementById('btnRefresh');
+    applyBtn.disabled = loading;
+    refreshBtn.disabled = loading;
+    applyBtn.style.opacity = loading ? '.65' : '';
+    refreshBtn.style.opacity = loading ? '.65' : '';
+    if(loading){
+      st.style.color='var(--muted)';
+      st.style.display='block';
+      st.innerHTML='<span class="spin"></span>'+(message||'Cargando…');
+    } else {
+      st.style.display='none';
+    }
+  }
+
+  /* ---------- multiselect franjas ---------- */
+  document.getElementById('msBtn').onclick=function(e){ e.stopPropagation();
+    document.getElementById('msPanel').classList.toggle('open'); };
+  document.addEventListener('click',function(){ document.getElementById('msPanel').classList.remove('open'); });
+  document.getElementById('msPanel').onclick=function(e){ e.stopPropagation(); };
+  document.getElementById('msAll').onclick=function(){ setAllHours(true); };
+  document.getElementById('msNone').onclick=function(){ setAllHours(false); };
+  function setAllHours(v){
+    CFG.hours.forEach(function(h){ hourSel[h]=v; });
+    Array.prototype.forEach.call(document.querySelectorAll('.ms-chip'),function(c){ c.classList.toggle('on',v); });
+    refreshMsLabel();
+  }
+  function selectedHours(){ return CFG.hours.filter(function(h){ return hourSel[h]; }); }
+  function refreshMsLabel(){
+    var s=selectedHours(), n=s.length;
+    document.getElementById('msCnt').textContent=n;
+    document.getElementById('msLabel').textContent =
+      (n===CFG.hours.length)?'Todas' : (n===0)?'Ninguna' : n+' franjas';
+  }
+
+  /* ---------- apply ---------- */
+  document.getElementById('btnApply').onclick=function(){ apply(false); };
+  document.getElementById('btnRefresh').onclick=function(){ apply(true); };
+
+  /* Cambiar la variable del heatmap NO llama al servidor: recolorea con los datos ya cargados */
+  document.getElementById('selVar').onchange=function(){ if(LAST) renderHeatmap(LAST.heatmap); };
+
+  function clampDate(id){
+    var el=document.getElementById(id);
+    if(el.value < CFG.dateMin) el.value = CFG.dateMin;
+    if(el.value > CFG.dateMax) el.value = CFG.dateMax;
+  }
+
+  function apply(nocache){
+    if(!CFG || IS_LOADING) return;
+    var hrs=selectedHours();
+    if(hrs.length===0){ alert('Selecciona al menos una franja horaria.'); return; }
+    clampDate('dFrom'); clampDate('dTo');
+    var filters={
+      dateFrom:document.getElementById('dFrom').value,
+      dateTo:document.getElementById('dTo').value,
+      hours: hrs.length===CFG.hours.length ? [] : hrs,   // [] = todas (servidor)
+      coordinator:document.getElementById('selCoord').value,
+      nocache: !!nocache,
+      forceShift: !!nocache
+    };
+    var requestId=++REQUEST_SEQ;
+    T0 = Date.now();
+    setLoading(true, nocache ? 'Recalculando con la data actual…' : 'Calculando KPIs…');
+    hideDetail();
+    google.script.run
+      .withSuccessHandler(function(r){
+        if(requestId!==REQUEST_SEQ) return;
+        render(r);
+        setLoading(false);
+      })
+      .withFailureHandler(onErr)
+      .getSummary(filters);
+  }
+
+  /* ---------- render ---------- */
+  function showWarn(){
+    var msgs=[].slice.call(arguments).filter(Boolean);
+    var el=document.getElementById('warn');
+    if(msgs.length){
+      el.innerHTML = msgs.map(function(m){ return '⚠️ '+esc(m); }).join('<br>');
+      el.style.display='block';
+    } else { el.style.display='none'; }
+  }
+
+  function renderCoverage(list){
+    var panel=document.getElementById('covPanel');
+    if(!list || !list.length){ panel.style.display='none'; return; }
+    panel.style.display='block';
+    var sin=0; list.forEach(function(f){ sin+=f.sinRegistro; });
+    document.getElementById('covCount').textContent =
+      sin ? (sin+' patentes sin registro de conexión') : 'cobertura completa';
+
+    COV=list;
+    var h='<thead><tr><th>Flota</th><th>Cumplimiento de la Flota</th><th>Sat. Programada</th>'+
+          '<th>Patentes programadas</th><th>Conectados</th>'+
+          '<th>Saturación Neta</th></tr></thead><tbody>';
+    list.forEach(function(f,i){
+      var rate = f.prog ? f.conn/f.prog : null;
+      var ciega = f.plates>0 && f.sinRegistro===f.plates;
+      var cu = f.cumpl;
+      var falta = (+f.noconnN||0);
+      h+='<tr><td><b>'+esc(f.fleet)+'</b>'+
+           (ciega?'<span class="r-sub" style="color:var(--red)">sin registro de conexión</span>':
+            (f.sinRegistro?'<span class="r-sub">'+f.sinRegistro+' patentes sin registro</span>':''))+'</td>'+
+         '<td class="rt '+(cu==null?'':(cu>=0.9?'good':(cu<0.75?'bad':'')))+'">'+pct(cu)+
+           '<span class="r-sub">'+(+f.platesConn||0)+' / '+(+f.plates||0)+' patentes</span></td>'+
+         '<td class="rt">'+pct(f.satProg)+'</td>'+
+         '<td>'+f.plates+'</td>'+
+         '<td class="rt cov-click '+(ciega?'bad':(rate!=null&&rate>=0.9?'good':''))+'" data-i="'+i+'"'+
+             (falta?' title="Clic: ver las vans-franja que no se conectaron"':'')+'>'+
+           pct(rate)+(falta?' <span class="cov-caret">▾</span>':'')+
+           '<span class="r-sub">'+f.conn+' / '+f.prog+'</span></td>'+
+         '<td class="rt '+(f.satNeta==null?'':(f.satNeta>=0.6?'good':(f.satNeta<0.3?'bad':'')))+'">'+
+           pct(f.satNeta)+'<span class="r-sub">'+(f.whbReal!=null?f.whbReal:'–')+' / '+
+           (f.whReal!=null?f.whReal:'–')+' h</span></td></tr>'+
+         '<tr class="cov-detail" id="covD'+i+'" style="display:none"><td colspan="6"></td></tr>';
+    });
+    document.getElementById('covTable').innerHTML=h+'</tbody>';
+    bindCoverage();
+  }
+
+  /* Panel por flota: al hacer clic en Conectados se despliegan las vans-franja sin conexión,
+     agrupadas por patente, para distinguir "una van que faltó todo el día" de "varias vans". */
+  var COV=[];
+  function bindCoverage(){
+    Array.prototype.forEach.call(document.querySelectorAll('#covTable .cov-click'),function(td){
+      td.onclick=function(){
+        var i=+td.dataset.i, f=COV[i];
+        if(!f || !(+f.noconnN)) return;
+        var tr=document.getElementById('covD'+i);
+        var open = tr.style.display==='none';
+        tr.style.display = open ? '' : 'none';
+        td.classList.toggle('open', open);
+        if(open && !tr.dataset.filled){
+          tr.querySelector('td').innerHTML = covDetailHtml(f);
+          tr.dataset.filled='1';
+        }
+      };
+    });
+  }
+
+  function covDetailHtml(f){
+    var list=f.noconn||[];
+    if(!list.length) return '<div class="hint" style="margin:0">Sin vans-franja pendientes.</div>';
+    var head='<div class="cov-h">'+f.noconnN+' vans-franja sin conexión · '+
+             (+f.noconnPlates||list.length)+' patente(s) involucrada(s)</div>';
+    var body='<table class="dt cov-inner"><thead><tr><th>Patente</th><th>Vans-franja sin conexión</th>'+
+             '<th>Bloques</th></tr></thead><tbody>';
+    list.forEach(function(x){
+      var when=(x.when||[]).map(function(k){
+        var p=k.split('|'); return fmtDate(p[0])+' '+pad(p[1])+'h';
+      }).join(' · ');
+      if(x.mas) when += ' … +'+x.mas+' más';
+      body+='<tr><td><b>'+esc(x.plate)+'</b></td><td>'+x.n+'</td>'+
+            '<td class="cov-when">'+esc(when)+'</td></tr>';
+    });
+    return head+body+'</tbody></table>';
+  }
+
+  /* Reparte el tiempo entre servidor y transporte. "Transporte" es lo que cuesta
+     serializar la respuesta y traerla por google.script.run: si eso domina, el cuello
+     ya no está en el cálculo sino en Apps Script como capa de entrega, y ahí sí
+     conviene mover el front a una página estática que haga fetch. */
+  function renderPerf(t){
+    var el=document.getElementById('perf');
+    if(!t){ el.className=''; return; }
+    var total = Date.now() - T0;
+    var srv = +t.msServidor || +t.msTotal || 0;
+    var red = Math.max(0, total - srv);
+    var frio = (t.origenCubo === 'reconstruido');
+    el.className='on';
+    el.innerHTML =
+      '<span class="p-i">⏱ total <b>'+(total/1000).toFixed(1)+' s</b></span>'+
+      '<span class="p-i">servidor <b>'+(srv/1000).toFixed(1)+' s</b></span>'+
+      '<span class="p-i">transporte <b>'+(red/1000).toFixed(1)+' s</b></span>'+
+      '<span class="p-i '+(frio?'p-warn':'p-ok')+'">cubo <b>'+esc(t.origenCubo)+'</b>'+
+        (t.msCubo?' ('+(t.msCubo/1000).toFixed(1)+' s)':'')+'</span>'+
+      (t.kb?'<span class="p-i">payload <b>'+t.kb+' KB</b></span>':'')+
+      (frio?'<span class="p-i p-warn">⚠ se reconstruyó el cubo · revisa el trigger de precalentarCache()</span>':'');
+  }
+
+  function render(r){
+    LAST=r;
+    renderPerf(r.timings);
+    showWarn(r.shiftWarning, r.dataWarning, r.abanWarning);
+    document.getElementById('cards').style.display='grid';
+    document.getElementById('hmPanel').style.display='block';
+
+    setKpi('kLosa','kLosaN', r.cards.losa, r.cards.losaW, r.cards.losaN);
+    setKpi('kJrn','kJrnN',   r.cards.jrn,  r.cards.jrnW,  r.cards.jrnN);
+    setKpi('kPkp','kPkpN',   r.cards.pkp,  r.cards.pkpW,  r.cards.pkpN);
+    document.getElementById('kRes').textContent  = r.cards.res;
+    document.getElementById('kAban').textContent = (r.cards.aban != null ? r.cards.aban : '–');
+
+    /* KPI 3 segmentado Desde | Hacia */
+    document.getElementById('kJrnDir').innerHTML =
+      'Desde: <b>'+pct(r.cards.jrnDes)+'</b> ('+(+r.cards.jrnDesW||0)+'/'+(+r.cards.jrnDesN||0)+') · '+
+      'Hacia: <b>'+pct(r.cards.jrnHac)+'</b> ('+(+r.cards.jrnHacW||0)+'/'+(+r.cards.jrnHacN||0)+')';
+
+    /* Programación */
+    document.getElementById('kProg').textContent = r.cards.prog;
+    var cEl=document.getElementById('kConn');
+    cEl.textContent = pct(r.cards.connRate);
+    cEl.className = 'k-val ' + (r.cards.connRate==null ? '' : (r.cards.connRate>=0.9?'good':(r.cards.connRate<0.75?'bad':'')));
+    document.getElementById('kConnN').textContent = r.cards.conn+' de '+r.cards.prog+' vans-franja programadas';
+    var nEl=document.getElementById('kNoConn');
+    nEl.textContent = r.cards.noconn;
+    nEl.className = 'k-val ' + (r.cards.prog ? (r.cards.noconn===0?'good':(r.cards.noconn/r.cards.prog>0.25?'bad':'')) : '');
+    document.getElementById('kNoConnN').textContent = r.cards.prog
+      ? pct(r.cards.prog ? r.cards.noconn/r.cards.prog : null)+' de lo programado no se conectó' : '';
+
+    /* WH Busy total */
+    document.getElementById('kWhb').textContent = (r.cards.whb!=null) ? r.cards.whb : '–';
+
+    /* Cumplimiento de Flota: patentes distintas programadas que se conectaron */
+    var cuEl=document.getElementById('kCumpl');
+    cuEl.textContent = pct(r.cards.cumpl);
+    cuEl.className = 'k-val ' + (r.cards.cumpl==null ? '' : (r.cards.cumpl>=0.9?'good':(r.cards.cumpl<0.75?'bad':'')));
+    document.getElementById('kCumplN').textContent =
+      (+r.cards.cumplPlates||0)+' de '+(+r.cards.cumplPlatesN||0)+' patentes programadas se conectaron';
+
+    /* Saturaciones. Alta saturación es buena (la flota se está usando). */
+    var spEl=document.getElementById('kSatProg');
+    spEl.textContent = pct(r.cards.satProg);
+    spEl.className = 'k-val ' + (r.cards.satProg==null ? '' : (r.cards.satProg>=0.6?'good':(r.cards.satProg<0.3?'bad':'')));
+    document.getElementById('kSatProgN').textContent =
+      (r.cards.whbProg!=null?r.cards.whbProg:'–')+' h busy / '+(+r.cards.prog||0)+' h programadas al 100%';
+
+    var snEl=document.getElementById('kSatNeta');
+    snEl.textContent = pct(r.cards.satNeta);
+    snEl.className = 'k-val ' + (r.cards.satNeta==null ? '' : (r.cards.satNeta>=0.6?'good':(r.cards.satNeta<0.3?'bad':'')));
+    document.getElementById('kSatNetaN').textContent =
+      (r.cards.whb!=null?r.cards.whb:'–')+' h busy / '+(r.cards.wh!=null?r.cards.wh:'–')+' h realmente conectadas';
+
+    renderCoordTable(r.byCoord || []);
+    renderCoverage(r.coverage || []);
+    renderHeatmap(r.heatmap);
+  }
+  function setKpi(idVal,idSub,rate,w,n){
+    var el=document.getElementById(idVal);
+    if(rate==null){ el.textContent='–'; el.className='k-val'; }
+    else{ el.textContent=(rate*100).toFixed(1)+'%'; el.className='k-val '+(rate<=0.15?'good':(rate>=0.35?'bad':'')); }
+    document.getElementById(idSub).textContent = (+w||0)+' / '+(+n||0)+' registros';
+  }
+
+  /* ---------- indicadores por coordinador ---------- */
+  function renderCoordTable(list){
+    var panel=document.getElementById('coordPanel');
+    if(!list.length){ panel.style.display='none'; return; }
+    panel.style.display='block';
+    document.getElementById('coordCount').textContent = list.length+' coordinadores';
+
+    var h='<thead><tr><th>Coordinador</th><th>Time Losa &gt;30</th><th>Time DO &gt;90</th>'+
+          '<th>Time Pick Up Hacia Aero</th><th>Rescates</th><th>Abandonos</th><th>WH Busy</th>'+
+          '<th>Sat. Programada</th><th>Sat. Neta</th><th>Programadas</th><th>Conectadas</th></tr></thead><tbody>';
+    list.forEach(function(c){
+      var connRate = c.prog ? c.conn/c.prog : null;
+      h+='<tr><td><b>'+esc(c.name)+'</b></td>'+
+         rateCell(c.losa,c.losaW,c.losaN)+
+         rateCell(c.jrn,c.jrnW,c.jrnN)+
+         rateCell(c.pkp,c.pkpW,c.pkpN)+
+         '<td>'+c.res+'</td>'+
+         '<td>'+(c.aban!=null?c.aban:'–')+'</td>'+
+         '<td>'+(c.whb!=null?c.whb:'–')+'</td>'+
+         '<td class="rt">'+pct(c.satProg)+'</td>'+
+         '<td class="rt">'+pct(c.satNeta)+'</td>'+
+         '<td>'+c.prog+'</td>'+
+         '<td class="rt '+(connRate==null?'':(connRate>=0.9?'good':(connRate<0.75?'bad':'')))+'">'+
+           pct(connRate)+'<span class="r-sub">'+c.conn+' / '+c.prog+'</span></td></tr>';
+    });
+    document.getElementById('coordTable').innerHTML=h+'</tbody>';
+  }
+  function rateCell(rate,w,n){
+    var cls = rate==null?'':(rate<=0.15?'good':(rate>=0.35?'bad':''));
+    return '<td class="rt '+cls+'">'+pct(rate)+'<span class="r-sub">'+(+w||0)+' / '+(+n||0)+'</span></td>';
+  }
+
+  function metricValue(c, m){
+    if(m==='res') return c.res;
+    if(m==='aban') return c.aban||0;
+    if(m==='prog') return c.prog;
+    if(m==='noconn') return Math.max(0,(c.prog||0)-(c.conn||0));
+    return c[m];
+  }
+
+  function renderHeatmap(hm){
+    var m = document.getElementById('selVar').value;
+    var mCfg = METRICS[m];
+    document.getElementById('hmTitle').textContent = 'Mapa de calor · ' + mCfg.label;
+
+    var max=0;
+    Object.keys(hm.cells).forEach(function(k){
+      var v = metricValue(hm.cells[k], m);
+      if(v != null && v > max) max = v;
+    });
+    document.getElementById('legMax').textContent = (mCfg.kind==='rate') ? (max*100).toFixed(1)+'%' : (max||0);
+    document.getElementById('legUnit').textContent = '· '+mCfg.label;
+
+    var html='<table class="hm"><thead><tr><th></th>';
+    hm.hours.forEach(function(h){ html+='<th>'+pad(h)+'</th>'; });
+    html+='</tr></thead><tbody>';
+    hm.dates.forEach(function(d){
+      html+='<tr><th>'+fmtDate(d)+'</th>';
+      hm.hours.forEach(function(h){
+        var key=d+'|'+h, c=hm.cells[key];
+        if(!c){ html+='<td><div class="cell empty"></div></td>'; return; }
+        var v = metricValue(c, m);
+        var bg = color(v==null?0:v, max);
+        html+='<td><div class="cell" style="background:'+bg+'" '+
+              'data-key="'+key+'" data-d="'+d+'" data-h="'+h+'" '+
+              'data-res="'+c.res+'" data-aban="'+(c.aban||0)+'" '+
+              'data-losa="'+fp(c.losa)+'" data-jrn="'+fp(c.jrn)+'" data-pkp="'+fp(c.pkp)+'" '+
+              'data-satprog="'+fp(c.satProg)+'" data-satneta="'+fp(c.satNeta)+'" '+
+              'data-whb="'+(c.whb!=null?c.whb:'')+'" '+
+              'data-prog="'+(c.prog||0)+'" data-conn="'+(c.conn||0)+'" '+
+              'data-wl="'+c.w.losa+'" data-wj="'+c.w.jrn+'" data-wp="'+c.w.pkp+'" '+
+              'data-nl="'+c.n.losa+'" data-nj="'+c.n.jrn+'" data-np="'+c.n.pkp+'"></div></td>';
+      });
+      html+='</tr>';
+    });
+    html+='</tbody></table>';
+    if(hm.dates.length===0) html='<div class="status">Sin datos para los filtros seleccionados.</div>';
+    document.getElementById('hmScroll').innerHTML=html;
+    bindCells();
+  }
+
+  function bindCells(){
+    var tip=document.getElementById('tip');
+    Array.prototype.forEach.call(document.querySelectorAll('.cell:not(.empty)'),function(cell){
+      cell.onmousemove=function(e){
+        var prog=+cell.dataset.prog||0, conn=+cell.dataset.conn||0;
+        tip.style.display='block';
+        tip.style.left=Math.min(e.clientX+14, window.innerWidth-250)+'px';
+        tip.style.top=(e.clientY+14)+'px';
+        tip.innerHTML =
+          '<div class="tt-h">'+fmtDate(cell.dataset.d)+' · '+pad(cell.dataset.h)+':00</div>'+
+          rowC('N° Rescates', cell.dataset.res)+
+          rowC('N° Abandonos', cell.dataset.aban)+
+          rowF('Time Losa &gt;30', cell.dataset.wl, cell.dataset.nl, cell.dataset.losa)+
+          rowF('Time DO &gt;90', cell.dataset.wj, cell.dataset.nj, cell.dataset.jrn)+
+          rowF('Time Pick Up Hacia Aero', cell.dataset.wp, cell.dataset.np, cell.dataset.pkp)+
+          rowC('WH Busy', cell.dataset.whb!==''? (+cell.dataset.whb).toFixed(2) : '–')+
+          rowC('Programadas', prog)+
+          rowC('Conectadas', prog ? (conn+'/'+prog+' · '+pct(conn/prog)) : '–')+
+          rowC('Sat. Programada', pctd(cell.dataset.satprog))+
+          rowC('Sat. Neta', pctd(cell.dataset.satneta));
+      };
+      cell.onmouseleave=function(){ tip.style.display='none'; };
+      cell.onclick=function(){ tip.style.display='none'; openDetail(cell); };
+    });
+    function rowC(l,v){ return '<div class="tt-r"><span>'+l+'</span><span>'+v+'</span></div>'; }
+    function rowF(l,w,n,rate){ return '<div class="tt-r"><span>'+l+'</span><span>'+(+w||0)+'/'+(+n||0)+' · '+pct(rate)+'</span></div>'; }
+  }
+
+  /* ---------- detail ---------- */
+  var CURCELL=null;
+  function openDetail(cell){
+    CURCELL=cell;
+    var d=cell.dataset.d, h=cell.dataset.h, coord=document.getElementById('selCoord').value;
+    var det=document.getElementById('detail'); det.style.display='block';
+    det.scrollIntoView({behavior:'smooth',block:'nearest'});
+    document.getElementById('dtTitle').textContent='Bloque · '+fmtDate(d)+' · '+pad(h)+':00 – '+pad((+h+1)%24)+':00';
+
+    miniKpi('mLosa','mLosaN', cell.dataset.losa, cell.dataset.wl, cell.dataset.nl);
+    miniKpi('mJrn','mJrnN',   cell.dataset.jrn,  cell.dataset.wj, cell.dataset.nj);
+    miniKpi('mPkp','mPkpN',   cell.dataset.pkp,  cell.dataset.wp, cell.dataset.np);
+    document.getElementById('mRes').textContent  = cell.dataset.res;
+    document.getElementById('mAban').textContent = cell.dataset.aban;
+    document.getElementById('mSatProg').textContent = pctd(cell.dataset.satprog);
+    document.getElementById('mSatNeta').textContent = pctd(cell.dataset.satneta);
+    document.getElementById('mWhb').textContent = cell.dataset.whb!=='' ? (+cell.dataset.whb).toFixed(2) : '–';
+
+    var prog=+cell.dataset.prog||0, conn=+cell.dataset.conn||0;
+    document.getElementById('mProg').textContent = prog;
+    document.getElementById('mProgN').textContent = prog
+      ? (conn+' conectadas · '+(prog-conn)+' no conectadas') : 'sin programación en el bloque';
+
+    // Placeholders mientras carga el detalle del servidor
+    document.getElementById('whbSection').style.display='none';
+    document.getElementById('mWhbCard').classList.remove('open');
+    document.getElementById('conexSum').innerHTML='';
+    document.getElementById('progSum').innerHTML='';
+    document.getElementById('progTable').innerHTML='<tr><td class="status"><span class="spin"></span>Cargando…</td></tr>';
+    document.getElementById('conexTable').innerHTML='<tr><td class="status"><span class="spin"></span>Cargando…</td></tr>';
+    document.getElementById('resTable').innerHTML='<tr><td class="status"><span class="spin"></span>Cargando…</td></tr>';
+    document.getElementById('abanTable').innerHTML='<tr><td class="status"><span class="spin"></span>Cargando…</td></tr>';
+
+    google.script.run.withSuccessHandler(renderDetail).withFailureHandler(onErr).getCellDetail(d,h,coord);
+  }
+
+  function miniKpi(idV,idN,rate,w,n){
+    var el=document.getElementById(idV);
+    if(rate===''||rate==null){ el.textContent='–'; el.className='m-v'; }
+    else{ var r=+rate; el.textContent=(r*100).toFixed(1)+'%'; el.className='m-v '+(r<=0.15?'good':(r>=0.35?'bad':'')); }
+    document.getElementById(idN).textContent=(+w||0)+' / '+(+n||0)+' registros';
+  }
+
+  var DET=null;
+
+  /* Clic en la tarjeta WH Busy -> muestra/oculta drill-down */
+  document.getElementById('mWhbCard').onclick=function(){
+    var sec=document.getElementById('whbSection');
+    var open = sec.style.display==='none';
+    sec.style.display = open ? 'block' : 'none';
+    this.classList.toggle('open', open);
+    if(open){ renderWhbTree(); sec.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  };
+
+  function renderDetail(res){
+    DET=res;
+    document.getElementById('dtCoords').textContent = res.coords.length
+      ? ('Coordinador(es) de turno: '+res.coords.join(', '))
+      : 'Sin coordinador registrado en este bloque';
+
+    /* Totales FRESCOS del bloque: corrigen tarjeta, celda del heatmap y
+       tooltip si el resumen venía de un caché previo a una recarga de data. */
+    if(res.conex && res.conex.totals){
+      var fresh = res.conex.totals.whb;
+      document.getElementById('mWhb').textContent = fresh.toFixed(2);
+      if(CURCELL){
+        CURCELL.dataset.whb = fresh;
+        if(LAST && LAST.heatmap && LAST.heatmap.cells[CURCELL.dataset.key]){
+          LAST.heatmap.cells[CURCELL.dataset.key].whb = fresh;
+        }
+      }
+    }
+
+    renderProg();
+    renderConex();
+    renderWhbTree();
+    fillTable('resTable', res.rescates, 'Sin rescates en este bloque.');
+    fillTable('abanTable', res.abandonos || {rows:[],cols:[]}, 'Sin abandonos en este bloque.');
+  }
+
+  /* Programación del bloque: resumen + tabla con estado */
+  function renderProg(){
+    if(!DET || !DET.prog) return;
+    var p=DET.prog, s=p.summary;
+    var parts=[];
+    parts.push('<div class="pt n"><small>Conectadas</small>'+s.conn+' vans</div>');
+    parts.push('<div class="pt err"><small>No conectadas</small>'+s.noconn+' vans</div>');
+    parts.push('<div class="pt" style="background:#F3F4F6;color:var(--ink)"><small>Total programadas</small>'+s.prog+
+               (s.prog?(' · '+ (s.conn/s.prog*100).toFixed(0)+'% conexión'):'')+'</div>');
+    document.getElementById('progSum').innerHTML=parts.join('');
+
+    var el=document.getElementById('progTable');
+    if(!p.rows.length){ el.innerHTML='<tr><td class="status">Sin vans programadas en este bloque.</td></tr>'; return; }
+    var h='<thead><tr>'+p.cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
+    p.rows.forEach(function(r){
+      h+='<tr>'+p.cols.map(function(c){
+        if(c==='Estado'){
+          var ok = r[c]==='Conectada';
+          return '<td><span class="st-chip '+(ok?'ok':'bad')+'">'+esc(r[c])+'</span></td>';
+        }
+        return '<td>'+esc(r[c])+'</td>';
+      }).join('')+'</tr>';
+    });
+    el.innerHTML=h+'</tbody>';
+  }
+
+  /* Conexiones: SIN filtro N/C — se listan todas las vans del bloque */
+  function renderConex(){
+    if(!DET) return;
+    var cx=DET.conex, s=cx.summary;
+
+    var parts=[];
+    parts.push(sumCard('Producto N','n',s.N));
+    parts.push(sumCard('Producto C','c',s.C));
+    if(s.X && s.X.vans) parts.push(sumCard('Sin producto','x',s.X));
+    var tw=s.N.wh+s.C.wh+(s.X?s.X.wh:0);
+    var twb=s.N.whb+s.C.whb+(s.X?s.X.whb:0);
+    var tv=s.N.vans+s.C.vans+(s.X?s.X.vans:0);
+    parts.push('<div class="pt" style="background:#F3F4F6;color:var(--ink)"><small>Total</small>'+
+               tv+' vans · WH '+tw.toFixed(1)+' · Busy '+twb.toFixed(1)+'</div>');
+    document.getElementById('conexSum').innerHTML=parts.join('');
+
+    fillTable('conexTable', {rows:cx.rows, cols:cx.cols}, 'Sin vans conectadas en este bloque.');
+  }
+  function sumCard(label,cls,o){
+    return '<div class="pt '+cls+'"><small>'+label+'</small>'+o.vans+' vans · WH '+o.wh.toFixed(1)+' · Busy '+o.whb.toFixed(1)+'</div>';
+  }
+
+  /* ---------- Drill-down WH Busy: Producto -> Flota (company) -> Patente ---------- */
+  function renderWhbTree(){
+    if(!DET) return;
+    var host=document.getElementById('whbTree');
+    var rows=DET.conex.rows;
+    if(!rows.length){ host.innerHTML='<div class="status">Sin datos de conexiones para este bloque.</div>'; return; }
+
+    /* agrupar producto -> flota -> filas */
+    var tree={};
+    rows.forEach(function(r){
+      var p=r.Producto||'X', c=r['Flota']||'(sin flota)';
+      (tree[p]=tree[p]||{})[c]=(tree[p][c]||[]);
+      tree[p][c].push(r);
+    });
+
+    function tot(list,f){ return list.reduce(function(a,r){ return a+(+r[f]||0); },0); }
+
+    var html='';
+    Object.keys(tree).sort().forEach(function(p){
+      var comps=tree[p];
+      var allRows=[]; Object.keys(comps).forEach(function(c){ allRows=allRows.concat(comps[c]); });
+      html+='<details class="lvl-prod" open><summary><span>Producto '+esc(p)+
+            ' · '+allRows.length+' registros</span><span class="sum-r">WH '+tot(allRows,'Working Hours').toFixed(2)+
+            ' · Busy '+tot(allRows,'Working Hours Busy').toFixed(2)+'</span></summary>';
+      Object.keys(comps).sort(function(a,b){
+        return tot(comps[b],'Working Hours Busy')-tot(comps[a],'Working Hours Busy');
+      }).forEach(function(c){
+        var list=comps[c];
+        html+='<details class="lvl-comp"><summary><span>'+esc(c)+' · '+list.length+' patentes</span>'+
+              '<span class="sum-r">WH '+tot(list,'Working Hours').toFixed(2)+
+              ' · Busy '+tot(list,'Working Hours Busy').toFixed(2)+'</span></summary>';
+        html+='<div class="plate-tbl"><table class="dt"><thead><tr><th>Patente</th><th>Conductor</th><th>WH</th><th>WH Busy</th><th>% Busy</th></tr></thead><tbody>';
+        list.sort(function(a,b){ return (+b['Working Hours Busy']||0)-(+a['Working Hours Busy']||0); })
+            .forEach(function(r){
+          var w=+r['Working Hours']||0, b=+r['Working Hours Busy']||0;
+          html+='<tr><td>'+esc(r.Patente)+'</td><td>'+esc(r['Driver Name'])+'</td>'+
+                '<td>'+w.toFixed(3)+'</td><td>'+b.toFixed(3)+'</td>'+
+                '<td>'+(w>0?(b/w*100).toFixed(0)+'%':'–')+'</td></tr>';
+        });
+        html+='</tbody></table></div></details>';
+      });
+      html+='</details>';
+    });
+    host.innerHTML=html;
+  }
+
+  function fillTable(id, data, emptyMsg){
+    var el=document.getElementById(id);
+    if(!data.rows.length){ el.innerHTML='<tr><td class="status">'+emptyMsg+'</td></tr>'; return; }
+    var h='<thead><tr>'+data.cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
+    data.rows.forEach(function(r){ h+='<tr>'+data.cols.map(function(c){return '<td>'+esc(r[c])+'</td>';}).join('')+'</tr>'; });
+    el.innerHTML=h+'</tbody>';
+  }
+  function hideDetail(){ document.getElementById('detail').style.display='none'; }
+
+  /* ---------- helpers ---------- */
+  function color(v,max){
+    if(!v) return '#F3F4F6';
+    var t=max?v/max:0;
+    var a=[237,228,247], b=[242,73,92];              // lav-soft -> red
+    var c=a.map(function(x,i){ return Math.round(x+(b[i]-x)*t); });
+    return 'rgb('+c[0]+','+c[1]+','+c[2]+')';
+  }
+  function pad(n){ n=+n; return (n<10?'0':'')+n; }
+  function fp(x){ return x==null?'':x; }
+  /* Igual que pct(), pero para valores que vienen de dataset (siempre string). */
+  function pctd(x){ return (x===''||x==null)?'–':(Number(x)*100).toFixed(1)+'%'; }
+  function pct(x){ return (x===''||x==null)?'–':(x*100).toFixed(1)+'%'; }
+  function fmtDate(iso){ var p=iso.split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m];}); }
+  function onErr(e){
+    IS_LOADING=false;
+    document.getElementById('btnApply').disabled=false;
+    document.getElementById('btnRefresh').disabled=false;
+    document.getElementById('btnApply').style.opacity='';
+    document.getElementById('btnRefresh').style.opacity='';
+    var st=document.getElementById('status');
+    st.style.display='block';
+    st.style.color='var(--red)';
+    st.textContent='Error: '+(e&&e.message?e.message:e);
+  }
+</script>
+</body>
+</html>
